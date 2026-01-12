@@ -1,0 +1,143 @@
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Blackout Secure Sitemap Generator
+# Copyright © 2025-2026 Blackout Secure
+# Licensed under Apache License 2.0
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+name: 'Blackout Secure Sitemap Generator'
+description: 'Enterprise-grade automated sitemap generation (XML/TXT/GZIP) for static sites, SSG frameworks, and dynamic applications'
+author: 'Blackout Secure'
+runs:
+  using: 'node20'
+  main: 'dist/index.js'
+inputs:
+  site_url:
+    description: 'Public base URL of the site, e.g., https://example.com. Required when running from other repositories.'
+    required: true
+  public_dir:
+    description: 'Directory containing the built site files. Defaults to dist (most common for modern build tools). Examples: dist, public, build, out, _site'
+    required: false
+    default: 'dist'
+  sitemap_output_dir:
+    description: 'Directory to write sitemap files (XML, TXT, GZIP). Defaults to public_dir.'
+    required: false
+  include_patterns:
+    description: 'Comma-separated glob patterns to include (relative to public_dir)'
+    required: false
+    default: '**/*.html,**/*.htm'
+  exclude_patterns:
+    description: 'Comma-separated glob patterns to exclude (relative to public_dir)'
+    required: false
+    default: '**/*.map'
+  exclude_urls:
+    description: 'Comma-separated list of URLs to exclude from sitemap (exact match or pattern)'
+    required: false
+    default: '*/sitemap*.xml,*/sitemap*.txt,*/sitemap*.xml.gz'
+  exclude_extensions:
+    description: 'Comma-separated list of file extensions to exclude (e.g., .zip,.exe,.dmg). Note: Google can index many file types including PDFs - see https://developers.google.com/search/docs/crawling-indexing/indexable-file-types'
+    required: false
+    default: '.zip,.exe,.dmg,.pkg,.deb,.rpm,.tar,.gz,.7z,.rar,.iso'
+  additional_urls:
+    description: 'Comma-separated list of extra absolute URLs to include'
+    required: false
+  gzip:
+    description: 'Whether to also emit gzip-compressed sitemap files'
+    required: false
+    default: 'true'
+  lastmod_strategy:
+    description: 'Source for <lastmod> tag (optional per sitemaps.org): Date of last modification in W3C Datetime format. git=git commit time | filemtime=file modification time | current=build time | none=omit tag. Note: Should reflect when the linked page was last modified, not when sitemap is generated.'
+    required: false
+    default: 'git'
+  changefreq:
+    description: '<changefreq> tag (optional per sitemaps.org): How frequently the page is likely to change. Valid values: always, hourly, daily, weekly, monthly, yearly, never. Note: Considered a hint, not a command to search engines.'
+    required: false
+  priority:
+    description: '<priority> tag (optional per sitemaps.org): Priority of URLs relative to other URLs on your site. Valid values: 0.0 to 1.0 (default 0.5). Note: Only affects priority on YOUR site, not compared to other sites.'
+    required: false
+  sitemap_filename:
+    description: 'Filename for the main sitemap (must be XML format per sitemaps.org protocol, UTF-8 encoded, max 50MB uncompressed, max 50,000 URLs)'
+    required: false
+    default: 'sitemap.xml'
+  allow_autodetect:
+    description: 'Enable auto-detection of site_url/public_dir when not provided'
+    required: false
+    default: 'true'
+  prefer_company_name:
+    description: 'Optional company/brand name to include in logs and meta (no functional impact)'
+    required: false
+  parse_canonical:
+    description: 'Parse HTML files to use <link rel=canonical> for URL normalization'
+    required: false
+    default: 'true'
+  discover_links:
+    description: 'Discover internal links from HTML <a href> to include pages beyond glob matches'
+    required: false
+    default: 'true'
+  generate_sitemap_xml:
+    description: 'Generate XML format sitemap (default sitemap.xml)'
+    required: false
+    default: 'true'
+  generate_sitemap_txt:
+    description: 'Generate TXT format sitemap per sitemaps.org protocol: One URL per line, UTF-8 encoding, max 50,000 URLs, max 50MB'
+    required: false
+    default: 'true'
+  generate_sitemap_gzip:
+    description: 'Generate gzip-compressed version of XML sitemap (sitemap.xml.gz)'
+    required: false
+    default: 'true'
+  validate_output:
+    description: 'Run validation: ensure sitemaps are under recommended size'
+    required: false
+    default: 'true'
+  strict_validation:
+    description: 'If true, fail the job when validation issues are found. Recommended: true for CI/CD to catch issues early.'
+    required: false
+    default: 'true'
+  validate_sitemaps:
+    description: 'Comma-separated list of paths to existing sitemaps to validate (XML, TXT, or sitemap index files). Use this to validate sitemaps without generating new ones.'
+    required: false
+  debug_list_files:
+    description: 'Debug: List all files being processed'
+    required: false
+    default: 'false'
+  debug_list_canonical:
+    description: 'Debug: List all parsed canonical URLs'
+    required: false
+    default: 'false'
+  debug_list_urls:
+    description: 'Debug: List all URLs included in the sitemap'
+    required: false
+    default: 'false'
+  debug_show_sitemap:
+    description: 'Debug: Display generated sitemap.xml content'
+    required: false
+    default: 'false'
+  debug_show_sitemap_txt:
+    description: 'Debug: Display generated sitemap.txt content'
+    required: false
+    default: 'false'
+  debug_show_exclusions:
+    description: 'Debug: Display all excluded files and URLs'
+    required: false
+    default: 'false'
+  upload_artifacts:
+    description: 'Upload generated files as GitHub artifacts.'
+    required: false
+    default: 'true'
+  artifact_name:
+    description: 'Name of the GitHub artifact when upload_artifacts is enabled'
+    required: false
+    default: 'sitemap-files'
+  artifact_retention_days:
+    description: 'Number of days to retain the artifact (1-90). Leave empty for default (35 days)'
+    required: false
+outputs:
+  sitemap_path:
+    description: 'Path to the generated main sitemap.xml'
+  sitemap_index_path:
+    description: 'Path to the generated sitemap index if splitting occurred'
+  sitemap_txt_path:
+    description: 'Path to the generated TXT sitemap if enabled'
+branding:
+  color: 'blue'
+  icon: 'map'

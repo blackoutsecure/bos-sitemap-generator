@@ -1,0 +1,3 @@
+not a url
+https://example.com/page1
+invalid-protocol://example.com

@@ -1,0 +1,86 @@
+{
+  "name": "bos-sitemap-generator",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Blackout Secure Sitemap Generator - Automated sitemap.xml generation for static sites, SSG frameworks, and dynamic applications",
+  "author": "Blackout Secure <https://github.com/blackoutmode>",
+  "main": "dist/index.js",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/blackoutmode/bos-sitemap-generator.git"
+  },
+  "bugs": {
+    "url": "https://github.com/blackoutmode/bos-sitemap-generator/issues"
+  },
+  "homepage": "https://github.com/blackoutmode/bos-sitemap-generator#readme",
+  "keywords": [
+    "github-action",
+    "sitemap",
+    "humans-txt",
+    "security-txt",
+    "seo",
+    "static-site",
+    "sitemap-generator",
+    "xml-sitemap",
+    "ssg",
+    "nextjs",
+    "gatsby",
+    "hugo",
+    "jekyll",
+    "jamstack",
+    "blackout-secure",
+    "security",
+    "automation"
+  ],
+  "scripts": {
+    "build": "ncc build src/index.js -o dist",
+    "clean": "node test/cli.js clean",
+    "lint": "eslint . --fix",
+    "format": "prettier --write \"**/*.{js,json,md}\"",
+    "test": "mocha",
+    "test:watch": "mocha --watch",
+    "coverage": "nyc --reporter=html --reporter=text npm test",
+    "coverage:ci": "nyc --reporter=lcov npm test",
+    "pretest": "npm run build",
+    "check": "eslint . && prettier --check \"**/*.{js,json,md}\" && npm test"
+  },
+  "dependencies": {
+    "@actions/artifact": "^2.1.2",
+    "@actions/core": "^1.11.1",
+    "glob": "^10.3.10",
+    "node-html-parser": "^6.1.12",
+    "sitemap": "^8.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@vercel/ncc": "^0.38.1",
+    "chai": "^4.5.0",
+    "eslint": "^9.12.0",
+    "mocha": "^10.8.2",
+    "nyc": "^17.1.0",
+    "prettier": "^3.3.3"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "nyc": {
+    "exclude": [
+      "test/**",
+      "dist/**",
+      "node_modules/**",
+      "eslint.config.js"
+    ],
+    "reporter": [
+      "text",
+      "html",
+      "lcov"
+    ],
+    "all": true,
+    "check-coverage": false,
+    "branches": 70,
+    "lines": 70,
+    "functions": 70,
+    "statements": 70
+  }
+}
