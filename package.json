@@ -3,17 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "description": "Blackout Secure Sitemap Generator - Automated sitemap.xml generation for static sites, SSG frameworks, and dynamic applications",
-  "author": "Blackout Secure <https://github.com/blackoutmode>",
+  "author": "Blackout Secure <https://github.com/blackoutsecure>",
   "main": "dist/index.js",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/blackoutmode/bos-sitemap-generator.git"
+    "url": "git+https://github.com/blackoutsecure/bos-sitemap-generator.git"
   },
   "bugs": {
-    "url": "https://github.com/blackoutmode/bos-sitemap-generator/issues"
+    "url": "https://github.com/blackoutsecure/bos-sitemap-generator/issues"
   },
-  "homepage": "https://github.com/blackoutmode/bos-sitemap-generator#readme",
+  "homepage": "https://github.com/blackoutsecure/bos-sitemap-generator#readme",
   "keywords": [
     "github-action",
     "sitemap",
