@@ -5,7 +5,7 @@
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 name: 'Blackout Secure Sitemap Generator'
-description: 'Enterprise-grade automated sitemap generation (XML/TXT/GZIP) for static sites, SSG frameworks, and dynamic applications. Supports Next.js, Gatsby, Hugo, Jekyll, Vite and more.'
+description: 'Automated XML/TXT/GZIP sitemaps for static sites and SSG frameworks'
 author: 'Blackout Secure'
 runs:
   using: 'node20'
