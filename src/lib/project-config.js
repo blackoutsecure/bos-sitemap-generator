@@ -32,10 +32,10 @@ const PROJECT_CONFIG = {
 
   // Repository information
   repository: {
-    owner: 'blackoutmode',
+    owner: 'blackoutsecure',
     name: 'bos-sitemap-generator',
-    url: 'github.com/blackoutmode/bos-sitemap-generator',
-    issuesUrl: 'github.com/blackoutmode/bos-sitemap-generator/issues',
+    url: 'github.com/blackoutsecure/bos-sitemap-generator',
+    issuesUrl: 'github.com/blackoutsecure/bos-sitemap-generator/issues',
   },
 
   // Generated file attribution
