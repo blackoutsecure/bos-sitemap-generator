@@ -55,13 +55,6 @@ jobs:
           site_url: 'https://example.com'
           public_dir: 'dist'
 
-      - name: Commit sitemap
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add dist/sitemap*.xml dist/sitemap*.xml.gz dist/sitemap*.txt
-          git diff --quiet && git diff --staged --quiet || git commit -m "Update sitemap"
-          git push
 ```
 
 ## 📖 Examples
