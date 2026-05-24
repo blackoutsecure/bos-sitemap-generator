@@ -1,6 +1,7 @@
 # Dependencies
 node_modules/
-package-lock.json
+# package-lock.json is intentionally committed: GitHub Marketplace Actions need
+# a reproducible npm install in CI (`npm ci`), which requires the lockfile.
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -38,3 +39,34 @@ dist/sitemap*.xml.gz
 # Temporary files
 *.tmp
 *.temp
+
+# >>> bos-automation-hub:common >>>
+# Managed by https://github.com/blackoutsecure/bos-automation-hub — do not edit between markers.
+# OS noise
+.DS_Store
+Thumbs.db
+._*
+
+# Editor / IDE noise
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Local env files (NEVER commit credentials)
+.env
+.env.*
+!.env.example
+.envrc
+.direnv/
+
+# TLS / private keys
+.secrets/
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+secrets.*
+# <<< bos-automation-hub:common <<<

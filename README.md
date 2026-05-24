@@ -5,6 +5,7 @@
 [![Marketplace](https://img.shields.io/badge/GitHub%20Marketplace-blue?logo=github)](https://github.com/marketplace/actions/blackout-secure-sitemap-generator)
 [![GitHub release](https://img.shields.io/github/v/release/blackoutsecure/bos-sitemap-generator?sort=semver)](https://github.com/blackoutsecure/bos-sitemap-generator/releases)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
+[![Made by BlackoutSecure](https://img.shields.io/badge/made%20by-BlackoutSecure-1f1f1f)](https://github.com/blackoutsecure)
 
 Enterprise-grade automated sitemap generation (XML/TXT/GZIP) for static sites, SSG frameworks (Next.js, Gatsby, Hugo, Jekyll), and dynamic applications. Built for reliability, performance, and SEO best practices.
 
@@ -450,7 +451,7 @@ Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for detai
 ## 💬 Support
 
 - **Issues**: [GitHub Issues](https://github.com/blackoutsecure/bos-sitemap-generator/issues)
-- **Security**: See [SECURITY.md](SECURITY.md)
+- **Security**: see the organization-wide [Security Policy](https://github.com/blackoutsecure/.github/blob/main/SECURITY.md) and report via [GitHub Security Advisories](https://github.com/blackoutsecure/bos-sitemap-generator/security/advisories/new)
 - **Sponsor**: Support this project via [GitHub Sponsors](https://github.com/sponsors/blackoutsecure)
 
 ## 🔗 Resources
