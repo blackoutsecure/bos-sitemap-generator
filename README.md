@@ -440,7 +440,54 @@ Sitemap: https://example.com/sitemap.xml.gz
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+General contribution guidelines (issue triage, PR style, test
+expectations, security review) come from the organisation default at
+[`blackoutsecure/.github/CONTRIBUTING.md`](https://github.com/blackoutsecure/.github/blob/main/CONTRIBUTING.md),
+which applies to every repo in the org. The repo-specific bits are
+below.
+
+All PRs target the **`dev`** branch. The `main` branch is built by
+the Marketplace release pipeline (the launchpad reusable in
+[bos-automation-hub](https://github.com/blackoutsecure/bos-automation-hub))
+and is read-only to humans — PRs opened against `main` will be
+closed.
+
+### Local development
+
+```bash
+# Install dev deps (Node 20+)
+npm ci
+
+# Build the action bundle (mocha pretest also runs this)
+npm run build
+
+# Run the test suite (this is what CI runs)
+npm test
+
+# Lint + format + test in one shot
+npm run check
+
+# Coverage report (HTML + text)
+npm run coverage
+```
+
+### Style
+
+* **JavaScript**: ESLint flat config (`eslint.config.js`) + Prettier
+  (`.prettierrc.yaml`) — both are managed; CI runs `npm run check`.
+* **Bundle**: `dist/index.js` is committed (ncc bundle) — Marketplace
+  consumers fetch the tag, not `npm install`, so the bundle MUST be
+  in sync with `src/` on every release. CI checks for drift.
+* **Action contract**: `action.yml` `inputs:` / `outputs:` are the
+  published contract; changes are SemVer-significant.
+* **YAML (workflows)**: `actionlint` clean, pin third-party actions
+  by SHA (not tag), minimise `permissions:` per job.
+
+### Release flow
+
+Releases promote `dev` → `main` via the launchpad's `workflow_dispatch`
+mode = `release`. See the [Marketplace launchpad reusable](https://github.com/blackoutsecure/bos-automation-hub/blob/main/.github/workflows/bos-launchpad-marketplace.yml)
+for the full event-routing + allowlist model.
 
 ## 📄 License
 
