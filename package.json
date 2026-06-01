@@ -48,7 +48,7 @@
   "dependencies": {
     "@actions/artifact": "^2.1.2",
     "@actions/core": "^1.11.1",
-    "glob": "^10.3.10",
+    "glob": "^13.0.6",
     "node-html-parser": "^6.1.12",
     "sitemap": "^8.0.0"
   },
