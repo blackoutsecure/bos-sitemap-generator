@@ -49,7 +49,7 @@
     "@actions/artifact": "^2.1.2",
     "@actions/core": "^1.11.1",
     "glob": "^10.3.10",
-    "node-html-parser": "^6.1.12",
+    "node-html-parser": "^7.1.0",
     "sitemap": "^8.0.0"
   },
   "devDependencies": {
