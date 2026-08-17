@@ -70,6 +70,16 @@ describe('lib/ai', () => {
     assert.strictEqual(provider.model, 'acme-small');
   });
 
+  it('rejects non-HTTPS provider endpoints', () => {
+    assert.strictEqual(
+      aiMod.detectProvider('acme', {
+        ACME_API_KEY: 'k',
+        ACME_API_ENDPOINT: 'http://acme.test/v1/chat',
+      }),
+      null,
+    );
+  });
+
   it('produces a factual local summary', () => {
     const text = aiMod.localSummary(result());
     assert.match(text, /1 high, 1 warning/);
