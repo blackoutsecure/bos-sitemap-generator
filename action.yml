@@ -131,6 +131,52 @@ inputs:
   artifact_retention_days:
     description: 'Number of days to retain the artifact (1-90). Leave empty for default (35 days)'
     required: false
+  config_path:
+    description: 'Explicit repository config file. Leave empty to auto-discover `.github/bos-universal-config.json|yml`, `bos-universal-config.*`, or `.bos-sitemap.yml` under the workspace root.'
+    required: false
+  global_config_path:
+    description: 'Organization-level global config path, merged beneath the repository config.'
+    required: false
+    default: '.github/blackout-secure-sitemap-generator-global-config.yml'
+  use_global_config:
+    description: 'Global config tier: auto (load when present), true (require it), or false (disable discovery).'
+    required: false
+    default: 'auto'
+  use_marketplace_config:
+    description: 'Apply the bundled marketplace baseline config as the lowest precedence tier.'
+    required: false
+    default: 'true'
+  enable_audit:
+    description: 'Run the sitemap/SEO posture audit after generation. Rule severities come from `sitemap.audit.rules` in config.'
+    required: false
+    default: 'true'
+  audit_fail_on:
+    description: 'Audit exit policy: fail (non-zero on any fail/error finding) or never. Leave empty to use `sitemap.audit.fail_on` from config.'
+    required: false
+  sarif_output:
+    description: 'Path to write audit findings as SARIF 2.1.0 for GitHub code scanning upload. Empty disables SARIF output.'
+    required: false
+  report_json:
+    description: 'Path to write the machine-readable JSON audit report. Empty disables the report.'
+    required: false
+  recommendations_json:
+    description: 'Path to write structured remediation recommendations for non-pass findings. Empty disables the sidecar.'
+    required: false
+  skips_json:
+    description: 'Path to write the skipped-controls sidecar. SARIF drops `skip` findings, so this is the only machine-readable record of unassessed controls.'
+    required: false
+  step_summary:
+    description: 'Append the Markdown audit report to $GITHUB_STEP_SUMMARY.'
+    required: false
+    default: 'true'
+  enable_ai_summary:
+    description: 'Generate a short natural-language findings summary. Falls back to a deterministic local summary when no provider is available.'
+    required: false
+    default: 'true'
+  ai_provider:
+    description: 'AI summary provider: auto (GitHub Models when a token is present), none, or a named provider backed by <NAME>_API_KEY and <NAME>_API_ENDPOINT.'
+    required: false
+    default: 'auto'
 outputs:
   sitemap_path:
     description: 'Path to the generated main sitemap.xml'
@@ -138,6 +184,30 @@ outputs:
     description: 'Path to the generated sitemap index if splitting occurred'
   sitemap_txt_path:
     description: 'Path to the generated TXT sitemap if enabled'
+  url_count:
+    description: 'Number of URLs written to the sitemap set'
+  config_sources:
+    description: 'Comma-separated list of the applied config tiers, in precedence order'
+  audit_verdict:
+    description: 'Overall audit verdict: Pass, Review recommended, Action required, Inconclusive, or Not assessed'
+  audit_pass_count:
+    description: 'Number of audit controls that passed'
+  audit_warn_count:
+    description: 'Number of audit controls that produced a warning'
+  audit_fail_count:
+    description: 'Number of audit controls that failed'
+  audit_error_count:
+    description: 'Number of audit controls that could not be evaluated'
+  audit_skip_count:
+    description: 'Number of audit controls that were not assessed'
+  sarif_path:
+    description: 'Path to the written SARIF file, when sarif_output is set'
+  report_json_path:
+    description: 'Path to the written JSON audit report, when report_json is set'
+  recommendations_json_path:
+    description: 'Path to the written recommendations sidecar, when recommendations_json is set'
+  ai_summary:
+    description: 'Short natural-language summary of the audit findings'
 branding:
   color: 'blue'
   icon: 'map-pin'

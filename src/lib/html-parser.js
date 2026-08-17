@@ -53,7 +53,25 @@ function discoverInternalLinks(htmlPath) {
   }
 }
 
+/**
+ * Extract the `<meta name="robots">` content value from an HTML file
+ * @param {string} htmlPath - Path to HTML file
+ * @returns {string|null} - Directive list (e.g. 'noindex, nofollow') or null
+ */
+function extractRobotsMeta(htmlPath) {
+  try {
+    const html = fs.readFileSync(htmlPath, 'utf8');
+    const root = parseHtml(html);
+    const meta =
+      root.querySelector('meta[name="robots"]') || root.querySelector('meta[name="ROBOTS"]');
+    return meta?.getAttribute('content') || null;
+  } catch {
+    return null;
+  }
+}
+
 module.exports = {
   extractCanonicalUrl,
   discoverInternalLinks,
+  extractRobotsMeta,
 };

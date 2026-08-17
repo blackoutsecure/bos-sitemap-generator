@@ -1,0 +1,74 @@
+{
+  "sitemap": {
+    "generate": {
+      "xml": true,
+      "txt": true,
+      "gzip": true,
+      "sitemap_filename": "sitemap.xml"
+    },
+    "discovery": {
+      "parse_canonical": true,
+      "discover_links": true,
+      "include_patterns": ["**/*.html", "**/*.htm"],
+      "exclude_patterns": ["**/*.map"],
+      "exclude_urls": ["*/sitemap*.xml", "*/sitemap*.txt", "*/sitemap*.xml.gz"],
+      "exclude_extensions": [
+        ".zip",
+        ".exe",
+        ".dmg",
+        ".pkg",
+        ".deb",
+        ".rpm",
+        ".tar",
+        ".gz",
+        ".7z",
+        ".rar",
+        ".iso"
+      ],
+      "additional_urls": []
+    },
+    "seo": {
+      "lastmod_strategy": "git",
+      "changefreq": "",
+      "priority": ""
+    },
+    "audit": {
+      "enable": true,
+      "fail_on": "fail",
+      "max_url_length": 2048,
+      "min_url_count": 1,
+      "rules": {
+        "require_robots_txt": "warn",
+        "require_robots_sitemap_reference": "warn",
+        "require_404_page": "skip",
+        "require_security_txt": "skip",
+        "require_humans_txt": "skip",
+        "require_https": "warn",
+        "require_same_origin": "warn",
+        "forbid_duplicate_urls": "warn",
+        "forbid_query_strings": "warn",
+        "forbid_fragments": "warn",
+        "consistent_trailing_slash": "warn",
+        "max_url_length": "warn",
+        "forbid_noindex_urls": "warn",
+        "url_count_limit": "warn",
+        "file_size_limit": "warn",
+        "require_sitemap_index_when_split": "warn",
+        "require_lastmod": "skip",
+        "require_canonical_coverage": "skip",
+        "min_url_count": "warn"
+      }
+    },
+    "reporting": {
+      "step_summary": true,
+      "sarif": true,
+      "json_report": true,
+      "recommendations": true
+    },
+    "remediation": {
+      "enable_ai_findings_summary": true,
+      "ai_findings_summary_provider": "auto",
+      "local_heuristic_fallback": true
+    }
+  }
+}

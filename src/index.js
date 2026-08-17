@@ -14,10 +14,7 @@ try {
     const artifact = require('@actions/artifact');
     if (artifact?.DefaultArtifactClient) {
       artifactClient = new artifact.DefaultArtifactClient();
-    } else if (
-      artifact?.default &&
-      typeof artifact.default.uploadArtifact === 'function'
-    ) {
+    } else if (artifact?.default && typeof artifact.default.uploadArtifact === 'function') {
       // Fallback for default export shape
       artifactClient = artifact.default;
     }
@@ -27,12 +24,7 @@ try {
 }
 
 // Library imports
-const {
-  normalizeUrl,
-  formatFileSize,
-  findPublicDir,
-  inferSiteUrl,
-} = require('./lib/utils');
+const { normalizeUrl, formatFileSize, findPublicDir, inferSiteUrl } = require('./lib/utils');
 const { buildUrls } = require('./lib/url-builder');
 const {
   writeSitemapXml,
@@ -52,6 +44,12 @@ const {
   validateSitemapIndex,
   validateSitemaps,
 } = require('./lib/sitemap-validator');
+const cfgMod = require('./lib/config');
+const auditMod = require('./lib/audit');
+const sarifMod = require('./lib/sarif');
+const reportMod = require('./lib/report');
+const aiMod = require('./lib/ai');
+const { packageMetadata } = require('./lib/metadata');
 
 // Limits with optional test overrides via environment variables for controlled testing.
 // These are evaluated at runtime (not build time) to honor per-test overrides.
@@ -66,21 +64,82 @@ function getXmlMaxSizeMb() {
 function getTxtMaxSizeMb() {
   return parseInt(process.env.TEST_TXT_MAX_SIZE_MB || '50', 10);
 }
-const DEFAULT_SITEMAP_FILENAME = 'sitemap.xml';
+/**
+ * Read a boolean action input, falling back to the layered config value.
+ * @param {string} name - Action input name.
+ * @param {boolean} fallback - Config-derived default.
+ * @returns {boolean} Resolved boolean.
+ */
+function boolInput(name, fallback) {
+  const raw = (core.getInput(name) || '').trim();
+  if (!raw) return fallback;
+  return /^true$/i.test(raw);
+}
+
+/**
+ * Read a comma-separated list input, falling back to the config value.
+ * @param {string} name - Action input name.
+ * @param {ReadonlyArray<string>} fallback - Config-derived default.
+ * @returns {string[]} Resolved list.
+ */
+function listInput(name, fallback) {
+  const raw = (core.getInput(name) || '').trim();
+  if (!raw) return [...fallback];
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Resolve the tri-state `use_global_config` input.
+ * @returns {boolean|null} true = require, false = disable, null = auto.
+ */
+function globalConfigMode() {
+  const raw = (core.getInput('use_global_config') || 'auto').trim().toLowerCase();
+  if (raw === 'true') return true;
+  if (raw === 'false') return false;
+  return null;
+}
 
 async function run() {
   try {
     // Print application header
     printHeader(core);
 
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // Layered configuration
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // Precedence: action input (when set) > repository config > global
+    // config > bundled marketplace baseline > built-in default.
+    let cfg;
+    try {
+      cfg = cfgMod.resolve(process.cwd(), {
+        configPath: core.getInput('config_path') || '',
+        globalConfigPath: core.getInput('global_config_path') || cfgMod.DEFAULT_GLOBAL_CONFIG_PATH,
+        useGlobalConfig: globalConfigMode(),
+        useMarketplaceConfig: boolInput('use_marketplace_config', true),
+        repoName: (process.env.GITHUB_REPOSITORY || '').split('/')[1] || '',
+      });
+    } catch (configError) {
+      core.setFailed(`❌ Configuration error: ${configError.message}`);
+      return;
+    }
+
+    const pkg = packageMetadata();
+    core.info(`⚙️  ${pkg.name} v${pkg.version}`);
+    core.info('   Config cascade:');
+    for (const source of cfg.sourcePaths) {
+      core.info(`      - ${source}`);
+    }
+    core.setOutput('config_sources', cfg.sourcePaths.join(','));
+
     // Resolve runtime limits (allows per-run test overrides)
     const MAX_URLS_PER_SITEMAP = getMaxUrlsPerSitemap();
     const XML_MAX_SIZE_MB = getXmlMaxSizeMb();
     const TXT_MAX_SIZE_MB = getTxtMaxSizeMb();
 
-    const allowAutodetect = /^true$/i.test(
-      core.getInput('allow_autodetect') || 'true',
-    );
+    const allowAutodetect = /^true$/i.test(core.getInput('allow_autodetect') || 'true');
     const sponsorName = core.getInput('prefer_company_name') || '';
 
     const siteUrlInputRaw = core.getInput('site_url');
@@ -100,11 +159,7 @@ async function run() {
     }
 
     // Warn when using the default example URL without explicit specification
-    if (
-      !siteUrlInputRaw &&
-      siteUrl &&
-      /^https:\/\/example\.com\/?$/i.test(siteUrl)
-    ) {
+    if (!siteUrlInputRaw && siteUrl && /^https:\/\/example\.com\/?$/i.test(siteUrl)) {
       core.warning(
         '⚠️  Using default site_url https://example.com/. For real sites, set the `site_url` input to your domain to generate correct URLs.',
       );
@@ -125,56 +180,22 @@ async function run() {
 
     const sitemapOutputDir = core.getInput('sitemap_output_dir') || publicDir;
 
-    const includePatterns = (
-      core.getInput('include_patterns') || '**/*.html,**/*.htm'
-    )
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
-    const excludePatterns = (core.getInput('exclude_patterns') || '**/*.map')
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
-    const excludeUrls = (
-      core.getInput('exclude_urls') ||
-      '*/sitemap*.xml,*/sitemap*.txt,*/sitemap*.xml.gz'
-    )
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
-    const excludeExtensions = (
-      core.getInput('exclude_extensions') ||
-      '.zip,.exe,.dmg,.pkg,.deb,.rpm,.tar,.gz,.7z,.rar,.iso'
-    )
-      .split(',')
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean)
-      .map((ext) => (ext.startsWith('.') ? ext : '.' + ext)); // Ensure extensions start with .
-    const additionalUrls = (core.getInput('additional_urls') || '')
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
-    const debugListFiles = /^true$/i.test(
-      core.getInput('debug_list_files') || 'false',
-    );
-    const debugListCanonical = /^true$/i.test(
-      core.getInput('debug_list_canonical') || 'false',
-    );
-    const debugShowSitemap = /^true$/i.test(
-      core.getInput('debug_show_sitemap') || 'false',
-    );
-    const debugShowTxtSitemap = /^true$/i.test(
-      core.getInput('debug_show_sitemap_txt') || 'false',
-    );
-    const debugShowExclusions = /^true$/i.test(
-      core.getInput('debug_show_exclusions') || 'false',
-    );
-    const debugListUrls = /^true$/i.test(
-      core.getInput('debug_list_urls') || 'false',
-    );
+    const includePatterns = listInput('include_patterns', cfg.discovery.includePatterns);
+    const excludePatterns = listInput('exclude_patterns', cfg.discovery.excludePatterns);
+    const excludeUrls = listInput('exclude_urls', cfg.discovery.excludeUrls);
+    const excludeExtensions = listInput('exclude_extensions', cfg.discovery.excludeExtensions)
+      .map((ext) => ext.toLowerCase())
+      .map((ext) => (ext.startsWith('.') ? ext : `.${ext}`));
+    const additionalUrls = listInput('additional_urls', cfg.discovery.additionalUrls);
+    const debugListFiles = /^true$/i.test(core.getInput('debug_list_files') || 'false');
+    const debugListCanonical = /^true$/i.test(core.getInput('debug_list_canonical') || 'false');
+    const debugShowSitemap = /^true$/i.test(core.getInput('debug_show_sitemap') || 'false');
+    const debugShowTxtSitemap = /^true$/i.test(core.getInput('debug_show_sitemap_txt') || 'false');
+    const debugShowExclusions = /^true$/i.test(core.getInput('debug_show_exclusions') || 'false');
+    const debugListUrls = /^true$/i.test(core.getInput('debug_list_urls') || 'false');
 
-    const gzip = /^true$/i.test(core.getInput('gzip') || 'true');
-    const lastmodStrategy = core.getInput('lastmod_strategy') || 'git';
+    const gzip = boolInput('gzip', cfg.generate.gzip);
+    const lastmodStrategy = core.getInput('lastmod_strategy') || cfg.seo.lastmodStrategy;
 
     // Validate lastmod_strategy
     const validLastmodStrategies = ['git', 'filemtime', 'current', 'none'];
@@ -192,17 +213,15 @@ async function run() {
       );
     }
 
-    const changefreq = core.getInput('changefreq') || undefined;
-    const priorityInput = core.getInput('priority') || undefined;
+    const changefreq = core.getInput('changefreq') || cfg.seo.changefreq || undefined;
+    const priorityInput = core.getInput('priority') || cfg.seo.priority || undefined;
     let priority = undefined;
 
     // Validate priority input (Google recommends omitting - they ignore it)
     if (priorityInput) {
       const pr = parseFloat(priorityInput);
       if (isNaN(pr) || pr < 0.0 || pr > 1.0) {
-        core.setFailed(
-          `Invalid priority value "${priorityInput}". Must be between 0.0 and 1.0.`,
-        );
+        core.setFailed(`Invalid priority value "${priorityInput}". Must be between 0.0 and 1.0.`);
         return;
       }
       priority = priorityInput;
@@ -211,42 +230,35 @@ async function run() {
       );
     }
 
-    const parseCanonical = /^true$/i.test(
-      core.getInput('parse_canonical') || 'true',
-    );
-    const discoverLinks = /^true$/i.test(
-      core.getInput('discover_links') || 'true',
-    );
+    const parseCanonical = boolInput('parse_canonical', cfg.discovery.parseCanonical);
+    const discoverLinks = boolInput('discover_links', cfg.discovery.discoverLinks);
     // Support legacy alternative input names (generate_xml_sitemap, generate_txt_sitemap, generate_gzip)
-    function resolveBooleanInput(primary, legacy, def) {
-      const rawPrimary = core.getInput(primary);
-      const rawLegacy = core.getInput(legacy);
-      const chosen = rawPrimary || rawLegacy || def;
-      return /^true$/i.test(chosen);
+    function resolveBooleanInput(primary, legacy, fallback) {
+      const rawPrimary = (core.getInput(primary) || '').trim();
+      const rawLegacy = (core.getInput(legacy) || '').trim();
+      const chosen = rawPrimary || rawLegacy;
+      return chosen ? /^true$/i.test(chosen) : fallback;
     }
     const generateXmlSitemap = resolveBooleanInput(
       'generate_sitemap_xml',
       'generate_xml_sitemap',
-      'true',
+      cfg.generate.xml,
     );
     const generateTxtSitemap = resolveBooleanInput(
       'generate_sitemap_txt',
       'generate_txt_sitemap',
-      'true',
+      cfg.generate.txt,
     );
     const generateGzip = resolveBooleanInput(
       'generate_sitemap_gzip',
       'generate_gzip',
-      'true',
+      cfg.generate.gzip,
     );
 
     // Artifact upload inputs
-    const uploadArtifacts = /^true$/i.test(
-      core.getInput('upload_artifacts') || 'true',
-    );
+    const uploadArtifacts = /^true$/i.test(core.getInput('upload_artifacts') || 'true');
     const artifactName = core.getInput('artifact_name') || 'sitemap-files';
-    const artifactRetentionDays =
-      core.getInput('artifact_retention_days')?.trim() || '';
+    const artifactRetentionDays = core.getInput('artifact_retention_days')?.trim() || '';
 
     // Sitemap validator inputs
     const validateSitemapPaths = (core.getInput('validate_sitemaps') || '')
@@ -261,13 +273,9 @@ async function run() {
 
     // Early strict validation of additional_urls (before buildUrls merges them)
     // Ensures we surface invalid entries even if later filtering or errors prevent TXT sitemap validation
-    const earlyStrictValidation = /^true$/i.test(
-      core.getInput('strict_validation') || 'false',
-    );
+    const earlyStrictValidation = /^true$/i.test(core.getInput('strict_validation') || 'false');
     if (earlyStrictValidation && additionalUrls.length) {
-      const invalidAdditional = additionalUrls.filter(
-        (u) => !/^https?:\/\//i.test(u),
-      );
+      const invalidAdditional = additionalUrls.filter((u) => !/^https?:\/\//i.test(u));
       if (invalidAdditional.length) {
         core.setFailed(
           `      ✗ Contains ${invalidAdditional.length} invalid URL(s) in additional_urls (must start with http/https)`,
@@ -282,24 +290,16 @@ async function run() {
     });
 
     printConfigSection(core, '📋', 'File Processing', {
-      'Include Patterns:': includePatterns.length
-        ? includePatterns.join(', ')
-        : '(default: **/*)',
-      'Exclude Patterns:': excludePatterns.length
-        ? excludePatterns.join(', ')
-        : '(none)',
+      'Include Patterns:': includePatterns.length ? includePatterns.join(', ') : '(default: **/*)',
+      'Exclude Patterns:': excludePatterns.length ? excludePatterns.join(', ') : '(none)',
       'Exclude URLs:': excludeUrls.length ? excludeUrls.join(', ') : '(none)',
-      'Exclude Extensions:': excludeExtensions.length
-        ? excludeExtensions.join(', ')
-        : '(none)',
+      'Exclude Extensions:': excludeExtensions.length ? excludeExtensions.join(', ') : '(none)',
     });
 
     printConfigSection(core, '🔗', 'URL Discovery', {
       'Parse Canonical:': parseCanonical ? 'Yes' : 'No',
       'Discover Links:': discoverLinks ? 'Yes' : 'No',
-      'Additional URLs:': additionalUrls.length
-        ? additionalUrls.join(', ')
-        : '(none)',
+      'Additional URLs:': additionalUrls.length ? additionalUrls.join(', ') : '(none)',
     });
 
     printConfigSection(core, '📈', 'SEO', {
@@ -320,6 +320,22 @@ async function run() {
       'Retention Days:': artifactRetentionDays || '(repo default)',
     });
 
+    printConfigSection(core, '🧭', 'Audit & Reporting', {
+      'Audit:': boolInput('enable_audit', cfg.audit.enable) ? 'Enabled' : 'Disabled',
+      'Fail On:': core.getInput('audit_fail_on') || cfg.audit.failOn,
+      'Max URL Length:': String(cfg.audit.maxUrlLength),
+      'Min URL Count:': String(cfg.audit.minUrlCount),
+      'Step Summary:': boolInput('step_summary', cfg.reporting.stepSummary)
+        ? 'Enabled'
+        : 'Disabled',
+      'SARIF Output:': core.getInput('sarif_output') || '(disabled)',
+      'JSON Report:': core.getInput('report_json') || '(disabled)',
+      'Recommendations:': core.getInput('recommendations_json') || '(disabled)',
+      'AI Summary:': boolInput('enable_ai_summary', cfg.remediation.enableAiFindingsSummary)
+        ? core.getInput('ai_provider') || cfg.remediation.aiFindingsSummaryProvider
+        : 'Disabled',
+    });
+
     if (validateSitemapPaths.length > 0) {
       printConfigSection(core, '✅', 'Sitemap Validation (External)', {
         'Sitemaps to Validate:': validateSitemapPaths.join(', '),
@@ -327,29 +343,16 @@ async function run() {
     }
 
     core.info('\n Debug Options:');
-    core.info(
-      `   List Files:          ${debugListFiles ? 'Enabled' : 'Disabled'}`,
-    );
-    core.info(
-      `   List Canonical URLs: ${debugListCanonical ? 'Enabled' : 'Disabled'}`,
-    );
-    core.info(
-      `   List URLs:           ${debugListUrls ? 'Enabled' : 'Disabled'}`,
-    );
-    core.info(
-      `   Show sitemap.xml:    ${debugShowSitemap ? 'Enabled' : 'Disabled'}`,
-    );
-    core.info(
-      `   Show sitemap.txt:    ${debugShowTxtSitemap ? 'Enabled' : 'Disabled'}`,
-    );
-    core.info(
-      `   Show Exclusions:     ${debugShowExclusions ? 'Enabled' : 'Disabled'}`,
-    );
+    core.info(`   List Files:          ${debugListFiles ? 'Enabled' : 'Disabled'}`);
+    core.info(`   List Canonical URLs: ${debugListCanonical ? 'Enabled' : 'Disabled'}`);
+    core.info(`   List URLs:           ${debugListUrls ? 'Enabled' : 'Disabled'}`);
+    core.info(`   Show sitemap.xml:    ${debugShowSitemap ? 'Enabled' : 'Disabled'}`);
+    core.info(`   Show sitemap.txt:    ${debugShowTxtSitemap ? 'Enabled' : 'Disabled'}`);
+    core.info(`   Show Exclusions:     ${debugShowExclusions ? 'Enabled' : 'Disabled'}`);
 
     core.info('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-    const sitemapFilename =
-      core.getInput('sitemap_filename') || DEFAULT_SITEMAP_FILENAME;
+    const sitemapFilename = core.getInput('sitemap_filename') || cfg.generate.sitemapFilename;
 
     if (!/^https?:\/\//i.test(siteUrl)) {
       core.setFailed('❌ site_url must start with http:// or https://');
@@ -405,9 +408,7 @@ async function run() {
 
       // Check if it matches exclude_urls patterns
       for (const pattern of excludeUrls) {
-        const regex = new RegExp(
-          '^' + pattern.replace(/\*/g, '.*').replace(/\?/g, '.') + '$',
-        );
+        const regex = new RegExp('^' + pattern.replace(/\*/g, '.*').replace(/\?/g, '.') + '$');
         if (regex.test(item.url)) {
           invalidUrls.push({
             url: item.url,
@@ -438,12 +439,8 @@ async function run() {
         core.warning(`   ... and ${invalidUrls.length - 10} more`);
       }
       // Filter them out before writing
-      urls = urls.filter(
-        (item) => !invalidUrls.some((inv) => inv.url === item.url),
-      );
-      core.info(
-        `✓ Filtered out ${invalidUrls.length} invalid URL(s) before writing`,
-      );
+      urls = urls.filter((item) => !invalidUrls.some((inv) => inv.url === item.url));
+      core.info(`✓ Filtered out ${invalidUrls.length} invalid URL(s) before writing`);
     }
 
     // Split into chunks if needed
@@ -472,10 +469,7 @@ async function run() {
           core.info(xml.toString());
         }
         if (generateGzip) {
-          const gzPath = path.join(
-            sitemapOutputDir,
-            path.basename(outMain) + '.gz',
-          );
+          const gzPath = path.join(sitemapOutputDir, path.basename(outMain) + '.gz');
           await writeGzip(xml, gzPath);
           const gzSize = formatFileSize(fs.statSync(gzPath).size);
           core.info(`   ✓ ${gzPath} (${gzSize})`);
@@ -490,17 +484,11 @@ async function run() {
           const xml = await writeSitemapXml(chunks[i], outPart);
           core.info(`   ✓ ${outPart} (${chunks[i].length} URLs)`);
           indexItems.push({
-            url: normalizeUrl(
-              siteUrl,
-              `/${path.relative(publicDir, outPart).replace(/\\/g, '/')}`,
-            ),
+            url: normalizeUrl(siteUrl, `/${path.relative(publicDir, outPart).replace(/\\/g, '/')}`),
             lastmod: new Date().toISOString(),
           });
           if (generateGzip) {
-            const gzPath = path.join(
-              sitemapOutputDir,
-              path.basename(outPart) + '.gz',
-            );
+            const gzPath = path.join(sitemapOutputDir, path.basename(outPart) + '.gz');
             await writeGzip(xml, gzPath);
             const gzSize = formatFileSize(fs.statSync(gzPath).size);
             core.info(`   ✓ ${gzPath} (${gzSize})`);
@@ -517,10 +505,7 @@ async function run() {
           fs.writeFileSync(sitemapIndexPath, corrupted, 'utf8');
         }
         if (generateGzip) {
-          const gzPath = path.join(
-            sitemapOutputDir,
-            path.basename(sitemapIndexPath) + '.gz',
-          );
+          const gzPath = path.join(sitemapOutputDir, path.basename(sitemapIndexPath) + '.gz');
           await writeGzip(xmlIndexContent, gzPath);
           const gzSize = formatFileSize(fs.statSync(gzPath).size);
           core.info(`   ✓ ${gzPath} (${gzSize})`);
@@ -560,9 +545,7 @@ async function run() {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     core.info('');
     core.info('🔍 Validation:');
-    const strictValidation = /^true$/i.test(
-      core.getInput('strict_validation') || 'false',
-    );
+    const strictValidation = /^true$/i.test(core.getInput('strict_validation') || 'false');
 
     if (strictValidation) {
       core.info('   Mode: Strict (will fail on errors)');
@@ -600,9 +583,7 @@ async function run() {
           core.info(`      ✓ Size OK (${sizeStr})`);
         }
       } else {
-        core.info(
-          '      ℹ️ No XML sitemap generated; skipping size validation',
-        );
+        core.info('      ℹ️ No XML sitemap generated; skipping size validation');
       }
 
       // Show format validation result after size (if XML validation passed)
@@ -627,11 +608,7 @@ async function run() {
       // ─────────────────────────────────────────
       // TXT Sitemap Validation
       // ─────────────────────────────────────────
-      if (
-        generateTxtSitemap &&
-        txtSitemapPath &&
-        fs.existsSync(txtSitemapPath)
-      ) {
+      if (generateTxtSitemap && txtSitemapPath && fs.existsSync(txtSitemapPath)) {
         core.info('\n   📄 TXT Sitemap:');
         try {
           const txtContent = fs.readFileSync(txtSitemapPath, 'utf8');
@@ -646,9 +623,7 @@ async function run() {
           }
           // Additional strict invalid protocol check before generic validation helper
           const rawLines = txtContent.split(/\r?\n/).filter(Boolean);
-          const invalidProtocolLines = rawLines.filter(
-            (l) => !/^https?:\/\//i.test(l),
-          );
+          const invalidProtocolLines = rawLines.filter((l) => !/^https?:\/\//i.test(l));
           if (strictValidation && invalidProtocolLines.length > 0) {
             core.setFailed(
               `      ✗ Contains ${invalidProtocolLines.length} invalid URL(s) (strict mode)`,
@@ -670,16 +645,11 @@ async function run() {
       }
 
       // Sitemap Index Validation
-      const sitemapIndexExists = fs.existsSync(
-        path.join(sitemapOutputDir, 'sitemap-index.xml'),
-      );
+      const sitemapIndexExists = fs.existsSync(path.join(sitemapOutputDir, 'sitemap-index.xml'));
       if (sitemapIndexExists) {
         core.info('\n   📄 Sitemap Index:');
         try {
-          const indexPathLocal = path.join(
-            sitemapOutputDir,
-            'sitemap-index.xml',
-          );
+          const indexPathLocal = path.join(sitemapOutputDir, 'sitemap-index.xml');
           const indexContent = fs.readFileSync(indexPathLocal, 'utf8');
           const indexResults = validateSitemapIndex(indexContent, {
             strict: strictValidation,
@@ -766,9 +736,7 @@ async function run() {
 
             core.info('   ✅ Artifact upload completed successfully!');
           } else {
-            core.info(
-              '   ℹ️  Artifact upload skipped (not in GitHub Actions environment)',
-            );
+            core.info('   ℹ️  Artifact upload skipped (not in GitHub Actions environment)');
           }
         } else {
           core.info('   ℹ️  No files to upload');
@@ -832,10 +800,141 @@ async function run() {
           );
         }
       } catch (err) {
+        core.warning(`   ⚠️  External sitemap validation failed: ${err.message}`);
+      }
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // Sitemap & SEO Audit + Reporting
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const auditEnabled = boolInput('enable_audit', cfg.audit.enable);
+    if (auditEnabled) {
+      const generatedFiles = [
+        outMain,
+        sitemapIndexPath,
+        txtSitemapPath,
+        outMain ? `${outMain}.gz` : '',
+      ].filter((file) => file && fs.existsSync(file));
+
+      const auditResult = auditMod.audit({
+        cfg,
+        siteUrl,
+        publicDir,
+        sitemapOutputDir,
+        urls,
+        generatedFiles,
+        chunkCount: chunks.length,
+        sitemapIndexPath,
+        maxUrlsPerSitemap: MAX_URLS_PER_SITEMAP,
+        maxSizeMb: XML_MAX_SIZE_MB,
+      });
+
+      reportMod.printAuditTable(core, auditResult);
+
+      const failOnInput = (core.getInput('audit_fail_on') || '').trim();
+      const failOn =
+        failOnInput && cfgMod.FAIL_ON_LEVELS.includes(failOnInput) ? failOnInput : cfg.audit.failOn;
+      if (failOnInput && !cfgMod.FAIL_ON_LEVELS.includes(failOnInput)) {
         core.warning(
-          `   ⚠️  External sitemap validation failed: ${err.message}`,
+          `audit_fail_on: '${failOnInput}' is not one of ${cfgMod.FAIL_ON_LEVELS.join(', ')}; using '${failOn}'.`,
         );
       }
+      const failRun = auditMod.shouldFail(auditResult, failOn);
+      reportMod.annotate(core, auditResult, failRun);
+
+      const remediation = {
+        ...cfg.remediation,
+        enableAiFindingsSummary: boolInput(
+          'enable_ai_summary',
+          cfg.remediation.enableAiFindingsSummary,
+        ),
+        aiFindingsSummaryProvider:
+          core.getInput('ai_provider') || cfg.remediation.aiFindingsSummaryProvider,
+      };
+      const summary = await aiMod.buildSummary(auditResult, remediation);
+      if (summary.text) {
+        core.info('');
+        core.info(`🤖 Findings summary (${summary.provider}):`);
+        for (const line of summary.text.split('\n')) {
+          core.info(`   ${line}`);
+        }
+      }
+
+      const sarifPath = core.getInput('sarif_output') || '';
+      if (cfg.reporting.sarif && sarifPath) {
+        try {
+          sarifMod.dump(
+            sarifMod.merge({
+              runs: [
+                sarifMod.auditRun(auditResult.findings, {
+                  baseDir: process.cwd(),
+                }),
+              ],
+            }),
+            sarifPath,
+          );
+          core.info(`   ✓ SARIF written: ${sarifPath}`);
+          core.setOutput('sarif_path', sarifPath);
+        } catch (err) {
+          core.warning(`   ⚠️  Failed to write SARIF: ${err.message}`);
+        }
+      }
+
+      const reportPath = core.getInput('report_json') || '';
+      if (cfg.reporting.jsonReport && reportPath) {
+        try {
+          reportMod.writeJsonReport(auditResult, reportPath, {
+            ai_summary: summary.text,
+            ai_provider: summary.provider,
+            config_sources: [...cfg.sourcePaths],
+            package: pkg,
+          });
+          core.info(`   ✓ JSON report written: ${reportPath}`);
+          core.setOutput('report_json_path', reportPath);
+        } catch (err) {
+          core.warning(`   ⚠️  Failed to write JSON report: ${err.message}`);
+        }
+      }
+
+      const recommendationsPath = core.getInput('recommendations_json') || '';
+      if (cfg.reporting.recommendations && recommendationsPath) {
+        try {
+          reportMod.writeRecommendations(auditResult, recommendationsPath);
+          core.info(`   ✓ Recommendations written: ${recommendationsPath}`);
+          core.setOutput('recommendations_json_path', recommendationsPath);
+        } catch (err) {
+          core.warning(`   ⚠️  Failed to write recommendations: ${err.message}`);
+        }
+      }
+
+      const skipsPath = core.getInput('skips_json') || '';
+      if (skipsPath) {
+        try {
+          reportMod.writeSkips(auditResult, skipsPath);
+          core.info(`   ✓ Skips written: ${skipsPath}`);
+        } catch (err) {
+          core.warning(`   ⚠️  Failed to write skips: ${err.message}`);
+        }
+      }
+
+      if (boolInput('step_summary', cfg.reporting.stepSummary)) {
+        reportMod.writeStepSummary(auditResult, {
+          aiSummary: summary.text,
+          aiProvider: summary.provider,
+        });
+      }
+
+      const totals = auditResult.totals();
+      core.setOutput('audit_verdict', auditResult.toJSON().verdict);
+      core.setOutput('audit_pass_count', String(totals.pass));
+      core.setOutput('audit_warn_count', String(totals.warn));
+      core.setOutput('audit_fail_count', String(totals.fail));
+      core.setOutput('audit_error_count', String(totals.error));
+      core.setOutput('audit_skip_count', String(totals.skip));
+      core.setOutput('ai_summary', summary.text);
+    } else {
+      core.info('');
+      core.info('🧭 Sitemap & SEO Audit: Disabled');
     }
 
     // Print application footer after optional uploads
@@ -844,6 +943,7 @@ async function run() {
     core.setOutput('sitemap_path', outMain);
     core.setOutput('sitemap_index_path', sitemapIndexPath);
     core.setOutput('sitemap_txt_path', txtSitemapPath);
+    core.setOutput('url_count', String(urls.length));
   } catch (err) {
     core.setFailed(err instanceof Error ? err.message : String(err));
   }

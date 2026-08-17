@@ -12,9 +12,14 @@ Enterprise-grade automated sitemap generation (XML/TXT/GZIP) for static sites, S
 ## ✨ Features
 
 - **Multiple Formats**: XML, TXT, and GZIP compressed sitemaps
-- **Smart Discovery**: Auto-detect site URLs and directories  
+- **Smart Discovery**: Auto-detect site URLs and directories
 - **Framework Support**: Works with Next.js, Gatsby, Hugo, Jekyll, Vite, and more
 - **SEO Optimized**: Canonical URL parsing, link discovery, lastmod timestamps
+- **Layered Configuration**: Bundled marketplace baseline → org global config → repo config → action inputs
+- **Sitemap & SEO Audit**: 19 evidence-based controls with per-rule `fail`/`warn`/`skip` severities
+- **Enterprise Reporting**: Markdown step summary, SARIF 2.1.0 for code scanning, JSON report, and recommendations sidecar
+- **AI Findings Summary**: Optional GitHub Models summary with a deterministic local fallback
+- **Local CLI**: `bos-sitemap validate|audit|sarif` reproduces CI output on your machine
 - **Validation**: Built-in validation against sitemaps.org protocol
 - **Large Sites**: Auto-splitting for sites with 50,000+ URLs
 - **Flexible**: Customizable patterns, exclusions, and priorities
@@ -55,7 +60,6 @@ jobs:
         with:
           site_url: 'https://example.com'
           public_dir: 'dist'
-
 ```
 
 ## 📖 Examples
@@ -205,6 +209,24 @@ Include non-HTML pages or external resources:
 | `validate_sitemaps`  | Validate existing sitemaps | -                                                      |
 | `strict_validation`  | Fail on validation issues  | `true`                                                 |
 
+### Audit & Reporting Inputs
+
+| Input                    | Description                                              | Default                                                       |
+| ------------------------ | -------------------------------------------------------- | ------------------------------------------------------------- |
+| `config_path`            | Explicit repository config file                          | auto-discover                                                 |
+| `global_config_path`     | Organization-level global config                         | `.github/blackout-secure-sitemap-generator-global-config.yml` |
+| `use_global_config`      | Global tier: `auto`, `true` (require), `false` (disable) | `auto`                                                        |
+| `use_marketplace_config` | Apply the bundled marketplace baseline                   | `true`                                                        |
+| `enable_audit`           | Run the sitemap/SEO posture audit                        | `true`                                                        |
+| `audit_fail_on`          | `fail` or `never`; empty uses `sitemap.audit.fail_on`    | from config                                                   |
+| `sarif_output`           | Write SARIF 2.1.0 for GitHub code scanning               | disabled                                                      |
+| `report_json`            | Write the machine-readable JSON audit report             | disabled                                                      |
+| `recommendations_json`   | Write structured remediation recommendations             | disabled                                                      |
+| `skips_json`             | Write the skipped-controls sidecar                       | disabled                                                      |
+| `step_summary`           | Append the Markdown report to `$GITHUB_STEP_SUMMARY`     | `true`                                                        |
+| `enable_ai_summary`      | Generate a natural-language findings summary             | `true`                                                        |
+| `ai_provider`            | `auto`, `none`, or a named provider                      | `auto`                                                        |
+
 ### lastmod Strategy Options
 
 - `git` - Use git commit timestamp (requires `fetch-depth: 0`)
@@ -212,13 +234,193 @@ Include non-HTML pages or external resources:
 - `current` - Use build/generation time
 - `none` - Omit lastmod tag
 
+## 🗂️ Layered Configuration
+
+Configuration is deep-merged, then validated. Precedence, lowest to highest:
+
+1. **Bundled marketplace baseline** — `src/marketplace-config.json`, shipped with the action
+2. **Organization global config** — `.github/blackout-secure-sitemap-generator-global-config.yml`
+3. **Repository config** — first match of `.github/bos-universal-config.json|yml|yaml`, `bos-universal-config.*`, or `.bos-sitemap.yml|yaml`
+4. **Action inputs** — any input you explicitly set wins over every config tier
+
+Unknown top-level keys are ignored so the same `bos-universal-config.json` can be
+shared with other Blackout Secure kits. Unknown keys **inside** `sitemap.audit.rules`
+are rejected, so a typo in a rule name fails fast instead of silently disabling a control.
+
+```yaml
+# .github/bos-universal-config.json (YAML shown for readability)
+sitemap:
+  owner: blackoutsecure
+  project_name: example-site
+
+  generate:
+    xml: true
+    txt: true
+    gzip: true
+    sitemap_filename: sitemap.xml
+
+  discovery:
+    parse_canonical: true
+    discover_links: true
+    include_patterns: ['**/*.html', '**/*.htm']
+    exclude_patterns: ['**/*.map']
+
+  seo:
+    lastmod_strategy: git
+    changefreq: weekly
+
+  audit:
+    enable: true
+    fail_on: fail # or `never` to keep the audit advisory
+    max_url_length: 2048
+    min_url_count: 1
+    rules:
+      require_https: fail
+      require_robots_sitemap_reference: fail
+      require_canonical_coverage: warn
+
+  reporting:
+    step_summary: true
+    sarif: true
+    json_report: true
+    recommendations: true
+
+  remediation:
+    enable_ai_findings_summary: true
+    ai_findings_summary_provider: auto
+    local_heuristic_fallback: true
+```
+
+## 🧭 Sitemap & SEO Audit
+
+Every control is evidence-based and configurable through `sitemap.audit.rules.<name>`.
+A rule set to `skip` still emits a finding, so the report records that the control was
+deliberately not assessed rather than silently dropping it.
+
+| Rule    | Config key                         | Checks                                              | Default |
+| ------- | ---------------------------------- | --------------------------------------------------- | ------- |
+| `SM001` | `require_robots_txt`               | robots.txt is published                             | `warn`  |
+| `SM002` | `require_robots_sitemap_reference` | robots.txt declares a `Sitemap:` directive          | `warn`  |
+| `SM003` | `require_404_page`                 | A custom 404 page exists                            | `skip`  |
+| `SM004` | `require_security_txt`             | RFC 9116 security.txt is published                  | `skip`  |
+| `SM005` | `require_humans_txt`               | humans.txt is published                             | `skip`  |
+| `SM010` | `require_https`                    | Every sitemap URL uses HTTPS                        | `warn`  |
+| `SM011` | `require_same_origin`              | Every URL matches the declared `site_url` origin    | `warn`  |
+| `SM012` | `forbid_duplicate_urls`            | No URL appears twice                                | `warn`  |
+| `SM013` | `forbid_query_strings`             | No URL carries a query string                       | `warn`  |
+| `SM014` | `forbid_fragments`                 | No URL carries a fragment                           | `warn`  |
+| `SM015` | `consistent_trailing_slash`        | One trailing-slash convention across the sitemap    | `warn`  |
+| `SM016` | `max_url_length`                   | URLs stay within `audit.max_url_length`             | `warn`  |
+| `SM017` | `forbid_noindex_urls`              | No `meta robots noindex` page is advertised         | `warn`  |
+| `SM020` | `url_count_limit`                  | 50,000 URL ceiling per sitemap                      | `warn`  |
+| `SM021` | `file_size_limit`                  | 50 MB uncompressed ceiling per file                 | `warn`  |
+| `SM022` | `require_sitemap_index_when_split` | A sitemap index exists once the set is split        | `warn`  |
+| `SM023` | `min_url_count`                    | At least `audit.min_url_count` URLs were discovered | `warn`  |
+| `SM030` | `require_lastmod`                  | Every URL carries a `<lastmod>` value               | `skip`  |
+| `SM031` | `require_canonical_coverage`       | Every HTML page declares a canonical URL            | `skip`  |
+
+No rule defaults to `fail`, so adopting the audit never breaks an existing pipeline on
+day one. Opt individual rules up to `fail` once your site is clean.
+
+### Reporting example
+
+```yaml
+- name: Generate sitemap and audit SEO posture
+  id: sitemap
+  uses: blackoutsecure/bos-sitemap-generator@v1
+  with:
+    site_url: 'https://example.com'
+    public_dir: 'dist'
+    sarif_output: 'sitemap-audit.sarif'
+    report_json: 'sitemap-audit.json'
+    recommendations_json: 'sitemap-recommendations.json'
+    audit_fail_on: 'fail'
+
+- name: Upload audit findings to code scanning
+  uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: sitemap-audit.sarif
+
+- run: echo "Verdict: ${{ steps.sitemap.outputs.audit_verdict }}"
+```
+
+`skip` findings are intentionally omitted from SARIF — they would clutter the Security
+tab with controls that were never assessed. Use `skips_json` when you need that record.
+
+## 🤖 AI Findings Summary
+
+When `enable_ai_summary` is on, the action asks a model for a three-bullet triage summary
+of the non-passing findings and appends it to the step summary and JSON report.
+
+- `ai_provider: auto` (default) uses **GitHub Models** whenever `GITHUB_MODELS_TOKEN` or
+  `GITHUB_TOKEN` is exposed to the job. Grant `models: read` in the job permissions.
+- `ai_provider: none` disables the model call.
+- Any other name uses `<NAME>_API_KEY` plus `<NAME>_API_ENDPOINT` from the environment.
+
+AI is never on the critical path: any missing credential, authorization failure, timeout,
+or transport error falls back to a deterministic local summary, and the run continues.
+
+```yaml
+jobs:
+  sitemap:
+    permissions:
+      contents: read
+      models: read
+      security-events: write
+    steps:
+      - uses: blackoutsecure/bos-sitemap-generator@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          site_url: 'https://example.com'
+```
+
+## 🖥️ Local CLI
+
+The CLI shares every module with the Action, so a local dry-run produces the same report
+as CI.
+
+```bash
+npm install
+
+# Resolve and print the merged configuration cascade
+npx bos-sitemap validate
+
+# Audit a built site and write every report artefact
+npx bos-sitemap audit \
+  --site-url https://example.com \
+  --public-dir dist \
+  --sarif sitemap-audit.sarif \
+  --json sitemap-audit.json \
+  --recommendations sitemap-recommendations.json \
+  --fail-on never
+
+# Merge SARIF logs before a single code-scanning upload
+npx bos-sitemap sarif --input a.sarif --input b.sarif --output merged.sarif
+```
+
+Exit codes: `0` success, `1` audit failed under the `fail` policy, `2` usage or
+configuration error.
+
 ## 📤 Outputs
 
-| Output               | Description                      |
-| -------------------- | -------------------------------- |
-| `sitemap_path`       | Path to main sitemap.xml         |
-| `sitemap_index_path` | Path to sitemap index (if split) |
-| `sitemap_txt_path`   | Path to TXT sitemap (if enabled) |
+| Output                      | Description                                                                        |
+| --------------------------- | ---------------------------------------------------------------------------------- |
+| `sitemap_path`              | Path to main sitemap.xml                                                           |
+| `sitemap_index_path`        | Path to sitemap index (if split)                                                   |
+| `sitemap_txt_path`          | Path to TXT sitemap (if enabled)                                                   |
+| `url_count`                 | Number of URLs written to the sitemap set                                          |
+| `config_sources`            | Applied config tiers, in precedence order                                          |
+| `audit_verdict`             | `Pass`, `Review recommended`, `Action required`, `Inconclusive`, or `Not assessed` |
+| `audit_pass_count`          | Controls that passed                                                               |
+| `audit_warn_count`          | Controls that warned                                                               |
+| `audit_fail_count`          | Controls that failed                                                               |
+| `audit_error_count`         | Controls that could not be evaluated                                               |
+| `audit_skip_count`          | Controls that were not assessed                                                    |
+| `sarif_path`                | Written SARIF file, when `sarif_output` is set                                     |
+| `report_json_path`          | Written JSON report, when `report_json` is set                                     |
+| `recommendations_json_path` | Written recommendations sidecar, when `recommendations_json` is set                |
+| `ai_summary`                | Short natural-language summary of the audit findings                               |
 
 ## 🔍 Validation
 
@@ -296,6 +498,7 @@ Available debug flags:
 **Cause**: Build step may have failed or public_dir is incorrect.
 
 **Solution**:
+
 - Verify build completes successfully
 - Check `public_dir` matches your build output location
 - Enable `debug_list_files: 'true'` to see what's being scanned
@@ -306,6 +509,7 @@ Available debug flags:
 **Cause**: Include patterns don't match files, or all files are excluded.
 
 **Solution**:
+
 - Check `include_patterns` - default is `**/*.html,**/*.htm`
 - Verify files match the pattern
 - Check `exclude_patterns` and `exclude_urls` for overlaps
@@ -316,6 +520,7 @@ Available debug flags:
 **Cause**: Git history not available or wrong strategy selected.
 
 **Solution**:
+
 - For `lastmod_strategy: 'git'`, ensure `fetch-depth: 0` in checkout:
   ```yaml
   - uses: actions/checkout@v4
@@ -330,6 +535,7 @@ Available debug flags:
 **Cause**: Generated XML doesn't match sitemaps.org protocol.
 
 **Solution**:
+
 - Check for invalid characters in URLs
 - Ensure `priority` is between 0.0 and 1.0
 - Validate `changefreq` values
@@ -341,6 +547,7 @@ Available debug flags:
 **Cause**: `parse_canonical` or auto-detection is overriding site_url.
 
 **Solution**:
+
 - Set `parse_canonical: 'false'` to disable canonical parsing
 - Ensure `site_url` input is provided explicitly
 - Check if HTML files contain incorrect canonical tags
@@ -350,6 +557,7 @@ Available debug flags:
 **Cause**: Missing permissions or git configuration.
 
 **Solution**:
+
 - Ensure proper git configuration:
   ```yaml
   git config user.name "github-actions[bot]"
@@ -371,6 +579,7 @@ Available debug flags:
 ### Does this support non-HTML files?
 
 **Answer**: By default, it indexes HTML/HTM files. Use `include_patterns` to add other types:
+
 ```yaml
 include_patterns: '**/*.html,**/*.htm,**/*.pdf,**/*.json'
 ```
@@ -378,12 +587,14 @@ include_patterns: '**/*.html,**/*.htm,**/*.pdf,**/*.json'
 ### Can I exclude certain URLs?
 
 **Answer**: Yes, use either:
+
 - `exclude_urls`: URL patterns (e.g., `*/admin/*,*/test/*`)
 - `exclude_patterns`: File patterns (e.g., `**/*.draft.html`)
 
 ### What's the maximum sitemap size?
 
 **Answer**: Per sitemaps.org protocol:
+
 - 50MB uncompressed per file
 - 50,000 URLs per file
 - Action auto-splits large sitemaps into index + multiple sitemaps
@@ -395,6 +606,7 @@ include_patterns: '**/*.html,**/*.htm,**/*.pdf,**/*.json'
 ### Can I validate sitemaps without generating new ones?
 
 **Answer**: Yes, use the `validate_sitemaps` input:
+
 ```yaml
 - uses: blackoutsecure/bos-sitemap-generator@v1
   with:
@@ -406,6 +618,7 @@ include_patterns: '**/*.html,**/*.htm,**/*.pdf,**/*.json'
 ### How do I handle multisite/multi-domain?
 
 **Answer**: Run the action multiple times with different `site_url` and `public_dir`:
+
 ```yaml
 - name: Generate sitemap for site 1
   uses: blackoutsecure/bos-sitemap-generator@v1
@@ -429,6 +642,7 @@ include_patterns: '**/*.html,**/*.htm,**/*.pdf,**/*.json'
 ### How do I submit the sitemap to search engines?
 
 **Answer**: Once deployed:
+
 1. **Google**: Use [Google Search Console](https://search.google.com/search-console)
 2. **Bing**: Use [Bing Webmaster Tools](https://www.bing.com/webmasters)
 3. **Others**: Most support sitemap.xml at the root or via robots.txt
@@ -473,14 +687,14 @@ npm run coverage
 
 ### Style
 
-* **JavaScript**: ESLint flat config (`eslint.config.js`) + Prettier
+- **JavaScript**: ESLint flat config (`eslint.config.js`) + Prettier
   (`.prettierrc.yaml`) — both are managed; CI runs `npm run check`.
-* **Bundle**: `dist/index.js` is committed (ncc bundle) — Marketplace
+- **Bundle**: `dist/index.js` is committed (ncc bundle) — Marketplace
   consumers fetch the tag, not `npm install`, so the bundle MUST be
   in sync with `src/` on every release. CI checks for drift.
-* **Action contract**: `action.yml` `inputs:` / `outputs:` are the
+- **Action contract**: `action.yml` `inputs:` / `outputs:` are the
   published contract; changes are SemVer-significant.
-* **YAML (workflows)**: `actionlint` clean, pin third-party actions
+- **YAML (workflows)**: `actionlint` clean, pin third-party actions
   by SHA (not tag), minimise `permissions:` per job.
 
 ### Release flow

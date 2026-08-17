@@ -5,6 +5,9 @@
   "description": "Blackout Secure Sitemap Generator - Automated sitemap.xml generation for static sites, SSG frameworks, and dynamic applications",
   "author": "Blackout Secure <https://github.com/blackoutsecure>",
   "main": "dist/index.js",
+  "bin": {
+    "bos-sitemap": "src/cli.js"
+  },
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -35,6 +38,7 @@
   ],
   "scripts": {
     "build": "ncc build src/index.js -o dist",
+    "cli": "node src/cli.js",
     "clean": "node test/cli.js clean",
     "lint": "eslint . --fix",
     "format": "prettier --write \"**/*.{js,json,md}\"",
@@ -49,6 +53,7 @@
     "@actions/artifact": "^2.1.2",
     "@actions/core": "^1.11.1",
     "glob": "^10.3.10",
+    "js-yaml": "^4.3.1",
     "node-html-parser": "^6.1.12",
     "sitemap": "^8.0.0"
   },
