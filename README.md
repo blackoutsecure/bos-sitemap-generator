@@ -728,7 +728,6 @@ Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for detai
 **Made with ❤️ by [Blackout Secure](https://github.com/blackoutsecure)**
 
 <!-- >>> managed-file-sync:security_readme_pointer >>> -->
-
 ## Security & secrets
 
 This repository is built with Blackout Secure's reusable GitHub Actions
@@ -738,5 +737,4 @@ Hub/Cloudflare/Balena setup walkthroughs), see the
 ["Secrets pipelining strategy"](https://github.com/blackoutsecure/bos-automation-hub#secrets-pipelining-strategy)
 section of `bos-automation-hub`. To report a vulnerability, see
 [SECURITY.md](https://github.com/blackoutsecure/.github/blob/main/SECURITY.md).
-
 <!-- <<< managed-file-sync:security_readme_pointer <<< -->
