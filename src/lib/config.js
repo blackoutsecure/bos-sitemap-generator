@@ -289,6 +289,7 @@ function fromObject(doc, { sourcePath = '', sourcePaths = [], repoName = '' }) {
     seo: seoFromObject(readMapping(doc, 'seo')),
     audit: auditFromObject(readMapping(doc, 'audit')),
     reporting: reportingFromObject(readMapping(doc, 'reporting')),
+    redaction: redactionFromObject(readMapping(doc, 'redaction')),
     remediation: remediationFromObject(readMapping(doc, 'remediation')),
     sourcePath,
     sourcePaths: Object.freeze([...sourcePaths]),
@@ -390,6 +391,14 @@ function reportingFromObject(d) {
     sarif: readBool(d, 'sarif', true),
     jsonReport: readBool(d, 'json_report', true),
     recommendations: readBool(d, 'recommendations', true),
+  });
+}
+
+function redactionFromObject(d) {
+  return Object.freeze({
+    enabled: readBool(d, 'enabled', true),
+    placeholder: readString(d, 'placeholder', '***'),
+    extraPatterns: Object.freeze(readStringList(d, 'extra_patterns')),
   });
 }
 

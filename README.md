@@ -221,6 +221,8 @@ Include non-HTML pages or external resources:
 | `audit_fail_on`          | `fail` or `never`; empty uses `sitemap.audit.fail_on`    | from config                                                   |
 | `sarif_output`           | Write SARIF 2.1.0 for GitHub code scanning               | disabled                                                      |
 | `report_json`            | Write the machine-readable JSON audit report             | disabled                                                      |
+| `redact_sensitive`       | Redact credential-shaped values from report surfaces     | true                                                          |
+| `redaction_placeholder`  | Replacement text for redacted values                     | `***`                                                         |
 | `recommendations_json`   | Write structured remediation recommendations             | disabled                                                      |
 | `skips_json`             | Write the skipped-controls sidecar                       | disabled                                                      |
 | `step_summary`           | Append the Markdown report to `$GITHUB_STEP_SUMMARY`     | `true`                                                        |
@@ -726,6 +728,7 @@ Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for detai
 **Made with ❤️ by [Blackout Secure](https://github.com/blackoutsecure)**
 
 <!-- >>> managed-file-sync:security_readme_pointer >>> -->
+
 ## Security & secrets
 
 This repository is built with Blackout Secure's reusable GitHub Actions
@@ -735,4 +738,5 @@ Hub/Cloudflare/Balena setup walkthroughs), see the
 ["Secrets pipelining strategy"](https://github.com/blackoutsecure/bos-automation-hub#secrets-pipelining-strategy)
 section of `bos-automation-hub`. To report a vulnerability, see
 [SECURITY.md](https://github.com/blackoutsecure/.github/blob/main/SECURITY.md).
+
 <!-- <<< managed-file-sync:security_readme_pointer <<< -->
