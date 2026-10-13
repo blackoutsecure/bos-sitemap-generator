@@ -50,7 +50,7 @@
     "check": "eslint . && prettier --check \"**/*.{js,json,md}\" && npm test"
   },
   "dependencies": {
-    "@actions/artifact": "^2.1.2",
+    "@actions/artifact": "^6.3.1",
     "@actions/core": "^1.11.1",
     "glob": "^10.3.10",
     "js-yaml": "^4.3.1",
